@@ -84,28 +84,32 @@ Should we reduce scope to just polynomials?
 
 """
 
+from sympy import *
+
 inIPython = False
 try:
     from IPython.display import display
     inIPython = True
-except:
-    pass
+except ImportError:
+    display = pprint
 
 import random
-from sympy import *
-import statistics
 
 import Operations
-
 from Timeout import exit_after
+
+DEBUG = True
 
 class mathGenerator:
 
     fillerNumRange = (1, 20)
     atomNesting = (1, 4)
     atomsInExpr = (1, 4)
-
     solutionRange = (1, 100)
+
+    maxSolOps = 8
+    acceptableBiggest = 10001
+
 
     trigChance = 0.1
     exponentialChance = 0.2
@@ -134,7 +138,8 @@ class mathGenerator:
 
         # if unsolvable or some other error, try generation again
         if solution is None:
-            print('INFO: failed to find solution, restarting')
+            if DEBUG:
+                print('FATAL: failed to find solution, restarting')
             return self.generate()
 
         finalEquation, answer = solution
@@ -153,21 +158,72 @@ class mathGenerator:
         solutions = solve(Eq(aExpr, answer), a) 
         return solutions
 
+    @exit_after(1)
+    def _timedSolve(self, eq):
+        return solve(eq, symbols('x'))
+
     def fuzzSolution(self, expr):
-        # if none of the fuzzed constants produce answers
-        # return none
+        # doesn't really fuzz, just tries to find roots
+        
+        failedToFindRoot = False
 
-        # set random vals for constant
-        # and solve
-        pass
+        sol = []
+        tryRoots = Eq(expr, 0)
+        try:
+            sol = self._timedSolve(tryRoots)
+            if not sol:
+                if DEBUG:
+                    print('RETRY: fuzz did not find values')
+                failedToFindRoot = True
+        except KeyboardInterrupt:
+            if DEBUG:
+                print('RETRY: fuzz took too long')
+            failedToFindRoot = True
+            pass
 
-    def fuzzSolutionWithGeneralSolution(self, expr, generalSolution):
-        # substitute potential constant values into generalSolution
-        # to find 1. constant values
-        # 2. possible solutions
+        # remove solutions with imaginary numbers 
+        newSol = []
+        for s in sol:
+            if not (I in preorder_traversal(s)):
+                newSol.append(s)
+        sol = newSol
 
-        # return none if can't find solution without imaginary numbers
-        pass
+        if not sol:
+            if DEBUG:
+                print('RETRY: fuzz only found imaginary solutions')
+            failedToFindRoot = True
+            return None
+
+        # remove solutions with too many operations
+        noSolOps = [count_ops(s) for s in sol]
+        if sol and max(noSolOps) > mathGenerator.maxSolOps:
+            if DEBUG:
+                print('RETRY: fuzz solutions too complicated')
+            failedToFindRoot = True
+
+        # remove solutions with massive numbers
+        elif sol:
+            biggestVal = max([max(self.leaves(s)) for s in sol])
+            if biggestVal > mathGenerator.acceptableBiggest:
+                if DEBUG:
+                    print('RETRY: numbers in fuzz solution are too big')
+                failedToFindRoot = True
+
+        if failedToFindRoot:
+            return None
+
+        finalEquation = tryRoots
+        solution = sol
+        return (finalEquation, solution)
+
+    def leaves(self, expr):
+        if len(expr.args) == 0:
+            return [expr]
+
+        l = []
+        for subtree in expr.args:
+            l = l + self.leaves(subtree)
+        return l
 
     def generateSolution(self, expr):
         a, x = symbols('a x')
@@ -178,11 +234,13 @@ class mathGenerator:
         try:
             sol = self._solveInTermsOfA(expr)
             if not sol:
-                print('DEBUG: could not find general solution')
+                if DEBUG:
+                    print('RETRY: could not find general solution')
                 findingGeneralSolutionFailed = True
         except KeyboardInterrupt: # solution is taking too long to find
             findingGeneralSolutionFailed = True
-            print('DEBUG: finding general solution took too long')
+            if DEBUG:
+                print('RETRY: finding general solution took too long')
             pass
 
 
@@ -193,10 +251,9 @@ class mathGenerator:
 
         # --- so at this point we have a general solution for a ---
 
-        # TODO: fix this (if multiple solutions, they should all be answers)
-        solutionInA = random.choice(sol) 
+        solutionInA = sol[0] # use first solution only to find a value
 
-        # choose answer
+        # choose answer (for first solution)
         answer = random.randint(*mathGenerator.solutionRange)
 
         # attempt to find the right value of a to get chosen answer
@@ -205,27 +262,64 @@ class mathGenerator:
         try:
             aVals = self._findConstant(solutionInA, answer)
             if not aVals:
-                print('DEBUG: could not solve for constant')
+                if DEBUG:
+                    print('RETRY: could not solve for constant')
                 findingConstantValueFailed = True
         except KeyboardInterrupt: # constant value is taking too long to find
             findingConstantValueFailed = True 
-            print('DEBUG: finding constant took too long')
+
+            if DEBUG:
+                print('RETRY: finding constant took too long')
             pass
 
         # if have general solution but can't solve to specific answer,
-        # fuzz values to general solution to find answer
+        # fuzz again
         if findingConstantValueFailed:
-            return self.fuzzSolutionWithGeneralSolution(expr, solutionInA)
+            return self.fuzzSolution(expr)
 
-        # -- at this point we have the constant value and an answers --
+        # -- at this point we have the constant value and an answer --
 
         # if multiple constant values end up with the same solution, choose one
         constantValue = random.choice(aVals)
 
         finalEquation = Eq(expr, constantValue)
-        solution = Eq(x, answer)
-        
-        return (finalEquation, solution)
+
+        solutions = [answer]
+        for otherSolution in sol[1:]:
+            solutions.append(otherSolution.subs(a, constantValue))
+
+        # -- validate all solutions --
+
+        # remove solutions with imaginary numbers 
+        newSol = []
+        for s in solutions:
+            if not (I in preorder_traversal(s)):
+                newSol.append(s)
+        solutions = newSol
+
+        if not solutions:
+            if DEBUG:
+                print('RETRY: only found imaginary solutions')
+            return None
+
+        # remove solutions with too many operations
+        noSolOps = [count_ops(s) for s in solutions]
+        if solutions and max(noSolOps) > mathGenerator.maxSolOps:
+            if DEBUG:
+                print('RETRY: solutions too complicated')
+            return None
+
+        # remove solutions with massive numbers
+        elif solutions:
+            biggestVal = max([max(self.leaves(s + Integer(0))) for s in solutions])
+            if biggestVal > mathGenerator.acceptableBiggest:
+                if DEBUG:
+                    print('RETRY: numbers in solution are too big')
+                return None
+
+        # finally return
+
+        return (finalEquation, solutions)
 
     def evaluateExprDifficulty(self, expr):
         """
@@ -304,23 +398,10 @@ class mathGenerator:
 if __name__ == "__main__":
     init_printing(use_unicode=True)
 
-    x, a = symbols('x a')
-    generator = mathGenerator(x)
+    generator = mathGenerator(symbols('x'))
     question, solution, difficulty = generator.generate()
 
     print()
     print("difficulty: " + str(difficulty))
     display(question)
     display(solution)
-
-    #generator = mathGenerator(x)
-    #generated = sorted([generator.generate() for x in range(10)], key=lambda x: x[1])
-
-    #for expr, score in generated:
-    #    equation = Eq(expr, a)
-    #    display(equation)
-    #    #display(solve(equation))
-    #    #display(simplify(expr), x)
-    #    #plot(expr)
-    #    print(score)
-    #    print("―"*30)
