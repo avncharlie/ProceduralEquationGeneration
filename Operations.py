@@ -43,48 +43,48 @@ allOperations = {
             'type': 'power'
         },
 
-        'root': {
-            'func': lambda x, y: Pow(x, Rational(1, y)),
-            'atomCombiner': False,
-            'numInputs': 2,
-            'secondInputGen': lambda: 2,
-            'type': 'power'
-        },
+        #'root': {
+        #    'func': lambda x, y: Pow(x, Rational(1, y)),
+        #    'atomCombiner': False,
+        #    'numInputs': 2,
+        #    'secondInputGen': lambda: 2,
+        #    'type': 'power'
+        #},
 
-        'logarithm': {
-            'func': log,
-            'atomCombiner': False,
-            'numInputs': 1,
-            'type': 'exponentials'
-        },
+        #'logarithm': {
+        #    'func': log,
+        #    'atomCombiner': False,
+        #    'numInputs': 1,
+        #    'type': 'exponentials'
+        #},
 
-        'exponential': {
-            'func': exp,
-            'atomCombiner': False,
-            'numInputs': 1,
-            'type': 'exponentials'
-        },
+        #'exponential': {
+        #    'func': exp,
+        #    'atomCombiner': False,
+        #    'numInputs': 1,
+        #    'type': 'exponentials'
+        #},
 
-        'sine': {
-            'func': sin,
-            'atomCombiner': False,
-            'numInputs': 1,
-            'type': 'trigonometry'
-        },
+        #'sine': {
+        #    'func': sin,
+        #    'atomCombiner': False,
+        #    'numInputs': 1,
+        #    'type': 'trigonometry'
+        #},
 
-        'cosine': {
-            'func': cos,
-            'atomCombiner': False,
-            'numInputs': 1,
-            'type': 'trigonometry'
-        },
+        #'cosine': {
+        #    'func': cos,
+        #    'atomCombiner': False,
+        #    'numInputs': 1,
+        #    'type': 'trigonometry'
+        #},
 
-        'tangent': {
-            'func': tan,
-            'atomCombiner': False,
-            'numInputs': 1,
-            'type': 'trigonometry'
-        }
+        #'tangent': {
+        #    'func': tan,
+        #    'atomCombiner': False,
+        #    'numInputs': 1,
+        #    'type': 'trigonometry'
+        #}
 }
 
 def operationsOfType(t):
